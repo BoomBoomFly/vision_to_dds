@@ -26,6 +26,7 @@ find_package(nav_msgs REQUIRED)
 find_package(px4_msgs REQUIRED)
 
 add_executable(vision_to_dds_node src/vision_to_dds.cpp)
+target_include_directories(vision_to_dds_node PUBLIC include)
 ament_target_dependencies(
   vision_to_dds_node
   rclcpp
