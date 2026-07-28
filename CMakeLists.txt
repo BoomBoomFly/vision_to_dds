@@ -32,6 +32,9 @@ add_library(vision_contract src/vision_contract.cpp)
 target_include_directories(vision_contract PUBLIC include)
 ament_target_dependencies(vision_contract tf2)
 
+add_library(t265_health_adapter src/t265_health_adapter.cpp)
+target_include_directories(t265_health_adapter PUBLIC include)
+
 add_executable(vision_to_dds_node src/vision_to_dds.cpp)
 target_include_directories(vision_to_dds_node PUBLIC include)
 target_link_libraries(vision_to_dds_node vision_contract)
@@ -49,7 +52,12 @@ ament_target_dependencies(
   std_srvs
 )
 
-install(TARGETS vision_contract vision_to_dds_node
+add_executable(t265_health_adapter_node src/t265_health_adapter_node.cpp)
+target_include_directories(t265_health_adapter_node PUBLIC include)
+target_link_libraries(t265_health_adapter_node t265_health_adapter)
+ament_target_dependencies(t265_health_adapter_node rclcpp nav_msgs std_msgs)
+
+install(TARGETS vision_contract t265_health_adapter vision_to_dds_node t265_health_adapter_node
   DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
@@ -57,6 +65,9 @@ if(BUILD_TESTING)
   ament_add_gtest(test_vision_contract test/test_vision_contract.cpp)
   target_link_libraries(test_vision_contract vision_contract)
   ament_target_dependencies(test_vision_contract tf2)
+  ament_add_gtest(test_t265_health_adapter test/test_t265_health_adapter.cpp)
+  target_link_libraries(test_t265_health_adapter t265_health_adapter vision_contract)
+  ament_target_dependencies(test_t265_health_adapter tf2)
 endif()
 
 ament_package()
