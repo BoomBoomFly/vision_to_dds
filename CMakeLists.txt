@@ -17,6 +17,7 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
+find_package(builtin_interfaces REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
@@ -24,32 +25,38 @@ find_package(tf2_geometry_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(px4_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
+
+add_library(vision_contract src/vision_contract.cpp)
+target_include_directories(vision_contract PUBLIC include)
+ament_target_dependencies(vision_contract tf2)
 
 add_executable(vision_to_dds_node src/vision_to_dds.cpp)
 target_include_directories(vision_to_dds_node PUBLIC include)
+target_link_libraries(vision_to_dds_node vision_contract)
 ament_target_dependencies(
   vision_to_dds_node
   rclcpp
+  builtin_interfaces
   tf2
   tf2_ros
   tf2_geometry_msgs
   geometry_msgs
   nav_msgs
   px4_msgs
+  std_msgs
+  std_srvs
 )
 
-install(TARGETS vision_to_dds_node
+install(TARGETS vision_contract vision_to_dds_node
   DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # uncomment the line when a copyright and license is not present in all source files
-  #set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # uncomment the line when this package is not in a git repo
-  #set(ament_cmake_cpplint_FOUND TRUE)
-  ament_lint_auto_find_test_dependencies()
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_vision_contract test/test_vision_contract.cpp)
+  target_link_libraries(test_vision_contract vision_contract)
+  ament_target_dependencies(test_vision_contract tf2)
 endif()
 
 ament_package()
