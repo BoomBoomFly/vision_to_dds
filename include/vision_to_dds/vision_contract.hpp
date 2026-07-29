@@ -158,6 +158,7 @@ private:
   bool have_quality_{false};
   int8_t quality_{0};
   uint64_t quality_received_us_{0};
+  uint64_t health_ready_since_us_{0};
   bool have_last_now_{false};
   uint64_t last_now_us_{0};
   bool have_sample_{false};

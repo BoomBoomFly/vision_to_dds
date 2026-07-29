@@ -116,6 +116,18 @@ TEST(VisionContract, FreezeQualityTimeoutAndTimestampJumpStopTheWriter)
     FaultCode::kTimestampJump);
 }
 
+TEST(VisionContract, MissingTfAfterHealthyStartupGraceLatchesInputTimeout)
+{
+  ContractConfig config;
+  config.maximum_sample_age_us = 200000U;
+  config.quality_timeout_us = 1000000U;
+  VisionContract contract(config);
+  makeHealthy(contract, 1000000U);
+  EXPECT_EQ(contract.tick(1000000U).decision, Decision::kWarmup);
+  EXPECT_EQ(contract.tick(1200001U).fault, FaultCode::kInputTimeout);
+  EXPECT_FALSE(contract.writerEnabled());
+}
+
 TEST(VisionContract, DiagnosticHistoryIsStrictlyBounded)
 {
   vision_to_dds::BoundedHistory<int> history(3U);

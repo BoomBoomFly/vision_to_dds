@@ -78,7 +78,21 @@ TEST(T265HealthAdapter, TimestampRollbackAdvancesEpochAndInvalidatesImmediately)
 TEST(T265HealthAdapter, NoMessageTimeoutIsInvalidWithoutFabricatedQuality)
 {
   T265HealthAdapter adapter(vision_to_dds::T265HealthConfig{});
-  EXPECT_EQ(adapter.tick(250000U).quality, 0);
+  const auto startup = adapter.tick(250000U);
+  EXPECT_EQ(startup.quality, 0);
+  EXPECT_FALSE(startup.quality_available);
+}
+
+TEST(T265HealthAdapter, FirstMeasuredMessageMakesQualityAvailable)
+{
+  T265HealthAdapter adapter(vision_to_dds::T265HealthConfig{});
+  EXPECT_FALSE(adapter.tick(1000000U).quality_available);
+  const auto observed = adapter.observeOdometry(odometry(1000000U, 0.01), 1000000U);
+  EXPECT_TRUE(observed.quality_available);
+  EXPECT_EQ(observed.quality, 100);
+  const auto lost = adapter.tick(1200001U);
+  EXPECT_TRUE(lost.quality_available);
+  EXPECT_EQ(lost.quality, 0);
 }
 
 TEST(T265HealthAdapter, RecoveryRequiresBridgeResetAndFullTwoTransformWarmup)

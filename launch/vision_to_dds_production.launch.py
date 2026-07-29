@@ -76,6 +76,21 @@ def _load_measured_extrinsics(path):
     return parent, child, values
 
 
+def _load_production_parameters(path):
+    if not path or not os.path.isfile(path):
+        raise RuntimeError('params_file must name a readable vision_to_dds YAML file')
+    with open(path, 'r') as stream:
+        document = yaml.safe_load(stream)
+    try:
+        parameters = dict(document['vision_to_dds_node']['ros__parameters'])
+    except (KeyError, TypeError):
+        raise RuntimeError('params_file must contain vision_to_dds_node.ros__parameters')
+    # Merge before constructing the Node.  ROS 2 Foxy does not reliably apply
+    # a dictionary after a parameter file as a final precedence layer.
+    parameters.update(PRODUCTION_CONTRACT_PARAMETERS)
+    return parameters
+
+
 def _start_production(context):
     _required_true(context, 'production')
     _required_true(context, 'enable_vision_dds')
@@ -83,6 +98,8 @@ def _start_production(context):
     _required_value(context, 'body_frame_id', 'base_link')
     parent, child, values = _load_measured_extrinsics(
         LaunchConfiguration('t265_to_base_link_extrinsics_file').perform(context))
+    production_parameters = _load_production_parameters(
+        LaunchConfiguration('params_file').perform(context))
     return [
         Node(
             package='tf2_ros', executable='static_transform_publisher',
@@ -101,13 +118,7 @@ def _start_production(context):
         Node(
             package='vision_to_dds', executable='vision_to_dds_node',
             name='vision_to_dds_node', output='screen',
-            parameters=[
-                LaunchConfiguration('params_file'),
-                # These production contract values override a custom params
-                # file.  The explicit launch interlock must not be silently
-                # undone by YAML precedence.
-                dict(PRODUCTION_CONTRACT_PARAMETERS),
-            ],
+            parameters=[production_parameters],
         ),
     ]
 

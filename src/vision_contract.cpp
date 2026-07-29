@@ -114,11 +114,19 @@ Evaluation VisionContract::tick(uint64_t now_us)
   if (!have_epoch_ || !have_quality_) {
     return warmupOrFault();
   }
+  if (health_ready_since_us_ == 0U) {
+    health_ready_since_us_ = now_us;
+  }
   const FaultCode health = healthFault(now_us);
   if (health != FaultCode::kNone) {
     return latch(health);
   }
   if (have_sample_ && now_us > previous_sample_.timestamp_us + config_.maximum_sample_age_us) {
+    return latch(FaultCode::kInputTimeout);
+  }
+  if (!have_sample_ && now_us > health_ready_since_us_ + config_.maximum_sample_age_us) {
+    // Once measured health is available, a TF chain that never appears is an
+    // input outage, not an indefinitely silent warm-up state.
     return latch(FaultCode::kInputTimeout);
   }
   return warmupOrFault();
@@ -194,6 +202,7 @@ void VisionContract::resetFault()
   fault_ = configurationValid() ? FaultCode::kNone : FaultCode::kConfiguration;
   have_sample_ = false;
   have_last_now_ = false;
+  health_ready_since_us_ = 0U;
   if (have_epoch_) {
     active_epoch_ = observed_epoch_;
   }

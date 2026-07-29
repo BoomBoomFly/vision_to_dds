@@ -32,5 +32,10 @@ The production launch also starts `t265_health_adapter_node` against the
 observed aircraft topic `/t265/pose/sample`.  It converts the RealSense
 wrapper's covariance-encoded tracker confidence into `/vision/quality` and
 publishes `/vision/source_epoch`; neither value is a fixed or mock health
-signal.  The launch forcibly retains `odom_frame`, `base_link`, and
+signal.  Before the first real T265 odometry sample it publishes no quality
+sample, so ordinary process startup remains fail-closed warm-up instead of
+fabricating quality zero and latching a false outage.  Once a source has been
+observed, a freeze or disconnect does publish quality zero and recovery
+advances the source epoch.  The launch forcibly retains `odom_frame`,
+`base_link`, and
 `/fmu/in/vehicle_visual_odometry` even when a custom parameter file is used.

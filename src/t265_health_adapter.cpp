@@ -19,6 +19,7 @@ T265HealthAdapter::T265HealthAdapter(T265HealthConfig config)
 T265HealthOutput T265HealthAdapter::observeOdometry(
   const T265OdometryHealthSample & sample, uint64_t now_us)
 {
+  have_observed_source_ = true;
   bool new_epoch = false;
   if (!configurationValid() || (have_last_now_ && now_us < last_now_us_)) {
     startNewEpoch();
@@ -126,6 +127,7 @@ T265HealthOutput T265HealthAdapter::output(bool source_epoch_changed) const
   T265HealthOutput result;
   result.source_epoch = source_epoch_;
   result.quality = quality_;
+  result.quality_available = have_observed_source_;
   result.source_epoch_changed = source_epoch_changed;
   return result;
 }

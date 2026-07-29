@@ -24,6 +24,11 @@ struct T265OdometryHealthSample {
 struct T265HealthOutput {
   uint32_t source_epoch{1U};
   int8_t quality{0};
+  // False until the adapter has actually observed a T265 odometry message.
+  // This prevents normal process startup from fabricating a measured
+  // quality=0 sample and latching the downstream bridge before the camera's
+  // first message can arrive.
+  bool quality_available{false};
   bool source_epoch_changed{false};
 };
 
@@ -59,6 +64,7 @@ private:
   bool have_sample_{false};
   uint64_t last_sample_timestamp_us_{0};
   uint64_t last_received_us_{0};
+  bool have_observed_source_{false};
   bool timed_out_{false};
 };
 
