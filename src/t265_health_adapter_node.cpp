@@ -1,6 +1,7 @@
 #include "vision_to_dds/t265_health_adapter.hpp"
 
 #include <chrono>
+#include <cmath>
 #include <functional>
 #include <stdexcept>
 #include <string>
@@ -62,7 +63,8 @@ private:
     get_parameter("linear_accel_covariance", linear_accel_covariance_);
     get_parameter("health_rate_hz", health_rate_hz_);
     if (odometry_topic_.empty() || quality_topic_.empty() || source_epoch_topic_.empty() ||
-      !(health_rate_hz_ > 0.0) || health_rate_hz_ > 1000.0) {
+      !(health_rate_hz_ > 0.0) || health_rate_hz_ > 1000.0 ||
+      !std::isfinite(linear_accel_covariance_) || !(linear_accel_covariance_ > 0.0)) {
       throw std::runtime_error("invalid T265 health adapter parameter");
     }
     vision_to_dds::T265HealthConfig config;
@@ -92,6 +94,9 @@ private:
     std_msgs::msg::UInt32 epoch;
     epoch.data = status.source_epoch;
     epoch_publisher_->publish(epoch);
+    if (!status.quality_available) {
+      return;
+    }
     std_msgs::msg::Int8 quality;
     quality.data = status.quality;
     quality_publisher_->publish(quality);
