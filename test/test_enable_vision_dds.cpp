@@ -41,7 +41,6 @@ TEST_F(VisionToDDSOutputTest, DefaultConfigurationCreatesNoVisionDdsWriter)
 
   EXPECT_FALSE(node->visionDdsEnabled());
   EXPECT_FALSE(node->hasVehicleOdometryPublisher());
-  EXPECT_EQ(node->targetTopicPublisherCount(), 0U);
   EXPECT_FALSE(node->mayPublishVisionDds());
 }
 

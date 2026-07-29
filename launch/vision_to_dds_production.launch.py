@@ -17,16 +17,35 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
+DEFAULT_T265_ODOMETRY_TOPIC = '/t265/pose/sample'
+PRODUCTION_CONTRACT_PARAMETERS = {
+    'enable_vision_dds': True,
+    'world_frame_id': 'odom_frame',
+    'body_frame_id': 'base_link',
+    'vehicle_visual_odometry_topic': '/fmu/in/vehicle_visual_odometry',
+    'quality_topic': '/vision/quality',
+    'source_epoch_topic': '/vision/source_epoch',
+}
+
+
 def _required_true(context, name):
     value = context.launch_configurations.get(name)
     if value is None or value.lower() != 'true':
         raise RuntimeError('production launch requires {}:=true'.format(name))
 
 
-def _load_measured_extrinsics(path):
-    if not path or not os.path.isfile(path):
+def _required_value(context, name, expected):
+    value = LaunchConfiguration(name).perform(context)
+    if value != expected:
         raise RuntimeError(
-            'production launch requires t265_to_base_link_extrinsics_file:=/absolute/measured.yaml')
+            'production launch requires {}:={}'.format(name, expected))
+
+
+def _load_measured_extrinsics(path):
+    if not path or not os.path.isabs(path) or not os.path.isfile(path):
+        raise RuntimeError(
+            'production launch requires '
+            't265_to_base_link_extrinsics_file:=/absolute/measured.yaml')
     with open(path, 'r') as stream:
         document = yaml.safe_load(stream)
     try:
@@ -36,13 +55,19 @@ def _load_measured_extrinsics(path):
         translation = parameters['translation_m']
         rotation = parameters['rotation_xyzw']
     except (KeyError, TypeError):
-        raise RuntimeError('invalid measured extrinsics YAML; use t265_to_base_link.extrinsics.yaml.template')
+        raise RuntimeError(
+            'invalid measured extrinsics YAML; use '
+            't265_to_base_link.extrinsics.yaml.template')
     if parent != 't265_pose_frame' or child != 'base_link':
         raise RuntimeError('measured extrinsics must define t265_pose_frame -> base_link')
     if not isinstance(translation, list) or len(translation) != 3 or \
             not isinstance(rotation, list) or len(rotation) != 4:
-        raise RuntimeError('extrinsics translation_m must have 3 and rotation_xyzw must have 4 values')
-    values = [float(value) for value in translation + rotation]
+        raise RuntimeError(
+            'extrinsics translation_m must have 3 and rotation_xyzw must have 4 values')
+    try:
+        values = [float(value) for value in translation + rotation]
+    except (TypeError, ValueError):
+        raise RuntimeError('extrinsics must contain only measured numeric values')
     if not all(math.isfinite(value) for value in values):
         raise RuntimeError('extrinsics contain non-finite values')
     norm = math.sqrt(sum(value * value for value in values[3:]))
@@ -54,6 +79,8 @@ def _load_measured_extrinsics(path):
 def _start_production(context):
     _required_true(context, 'production')
     _required_true(context, 'enable_vision_dds')
+    _required_value(context, 'world_frame_id', 'odom_frame')
+    _required_value(context, 'body_frame_id', 'base_link')
     parent, child, values = _load_measured_extrinsics(
         LaunchConfiguration('t265_to_base_link_extrinsics_file').perform(context))
     return [
@@ -63,9 +90,24 @@ def _start_production(context):
             arguments=[str(value) for value in values] + [parent, child],
         ),
         Node(
+            package='vision_to_dds', executable='t265_health_adapter_node',
+            name='t265_health_adapter_node', output='screen',
+            parameters=[{
+                'odometry_topic': LaunchConfiguration('t265_odometry_topic'),
+                'quality_topic': '/vision/quality',
+                'source_epoch_topic': '/vision/source_epoch',
+            }],
+        ),
+        Node(
             package='vision_to_dds', executable='vision_to_dds_node',
             name='vision_to_dds_node', output='screen',
-            parameters=[LaunchConfiguration('params_file')],
+            parameters=[
+                LaunchConfiguration('params_file'),
+                # These production contract values override a custom params
+                # file.  The explicit launch interlock must not be silently
+                # undone by YAML precedence.
+                dict(PRODUCTION_CONTRACT_PARAMETERS),
+            ],
         ),
     ]
 
@@ -74,8 +116,12 @@ def generate_launch_description():
     package_share = get_package_share_directory('vision_to_dds')
     return LaunchDescription([
         # No defaults: these must be explicitly provided by the operator.
-        DeclareLaunchArgument('production', description='Set exactly to true to arm this production launch.'),
-        DeclareLaunchArgument('enable_vision_dds', description='Set exactly to true to create the PX4 DDS writer.'),
+        DeclareLaunchArgument(
+            'production',
+            description='Set exactly to true to arm this production launch.'),
+        DeclareLaunchArgument(
+            'enable_vision_dds',
+            description='Set exactly to true to create the PX4 DDS writer.'),
         DeclareLaunchArgument(
             't265_to_base_link_extrinsics_file',
             description='Absolute path to Workstation 1 measured T265-to-body extrinsics YAML.'),
@@ -85,5 +131,11 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'world_frame_id', default_value='odom_frame',
             description='TF parent frame; must match the physical T265 odometry frame.'),
+        DeclareLaunchArgument(
+            'body_frame_id', default_value='base_link',
+            description='TF child frame; production requires base_link.'),
+        DeclareLaunchArgument(
+            't265_odometry_topic', default_value=DEFAULT_T265_ODOMETRY_TOPIC,
+            description='Observed T265 nav_msgs/Odometry topic used for measured health.'),
         OpaqueFunction(function=_start_production),
     ])
