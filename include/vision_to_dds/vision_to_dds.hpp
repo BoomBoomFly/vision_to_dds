@@ -1,6 +1,7 @@
 #ifndef VISION_TO_DDS__VISION_TO_DDS_HPP_
 #define VISION_TO_DDS__VISION_TO_DDS_HPP_
 
+#include <cstddef>
 #include <memory>
 #include <string>
 
@@ -21,10 +22,30 @@
 class VisionToDDS : public rclcpp::Node {
 public:
   VisionToDDS();
+  explicit VisionToDDS(const rclcpp::NodeOptions & options);
   ~VisionToDDS() = default;
   void run();
 
+  // These accessors support graph-level H0 verification without exposing the
+  // VehicleOdometry publisher itself.  The DDS writer is deliberately absent
+  // unless enable_vision_dds was explicitly supplied as true at startup.
+  bool visionDdsEnabled() const { return enable_vision_dds_; }
+  bool hasVehicleOdometryPublisher() const
+  {
+    return static_cast<bool>(vehicle_odometry_publisher_);
+  }
+  std::size_t targetTopicPublisherCount() const;
+  bool mayPublishVisionDds() const
+  {
+    return enable_vision_dds_ && hasVehicleOdometryPublisher() && contract_.writerEnabled();
+  }
+  vision_to_dds::FaultCode visionDdsFault() const { return contract_.fault(); }
+
 private:
+  // The H0 node test uses this fixture to drive one output cycle without
+  // starting a blocking executor.
+  friend class VisionToDDSOutputTest;
+
   void navigationParameters();
   void publishVisionPositionEstimate();
   void qualityCallback(const std_msgs::msg::Int8::SharedPtr msg);
@@ -56,6 +77,7 @@ private:
   std::string vehicle_visual_odometry_topic_;
   std::string quality_topic_;
   std::string source_epoch_topic_;
+  bool enable_vision_dds_{false};
   double output_rate_{20.0};
   std::size_t max_path_samples_{200};
 };

@@ -39,8 +39,10 @@ const char * faultCodeName(FaultCode code);
 enum class Decision { kWarmup, kPublish, kFault };
 
 struct ContractConfig {
-  std::string world_frame_id{"camera_odom_frame"};
-  std::string body_frame_id{"camera_link"};
+  // The vehicle contract is the body pose, not the T265 sensor pose.  The
+  // measured t265_pose_frame -> base_link extrinsic is supplied at deployment.
+  std::string world_frame_id{"odom_frame"};
+  std::string body_frame_id{"base_link"};
   int8_t minimum_quality{50};
   uint64_t maximum_sample_age_us{200000};
   uint64_t maximum_future_skew_us{20000};

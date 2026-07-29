@@ -1,0 +1,89 @@
+"""Explicitly armed production launch for vision_to_dds.
+
+Both ``production:=true`` and ``enable_vision_dds:=true`` are mandatory.  A
+measured t265_pose_frame -> base_link transform YAML is also mandatory and is
+validated before either the static TF publisher or DDS writer is started.
+"""
+
+import math
+import os
+
+import yaml
+
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.substitutions import LaunchConfiguration
+from launch_ros.actions import Node
+
+
+def _required_true(context, name):
+    value = context.launch_configurations.get(name)
+    if value is None or value.lower() != 'true':
+        raise RuntimeError('production launch requires {}:=true'.format(name))
+
+
+def _load_measured_extrinsics(path):
+    if not path or not os.path.isfile(path):
+        raise RuntimeError(
+            'production launch requires t265_to_base_link_extrinsics_file:=/absolute/measured.yaml')
+    with open(path, 'r') as stream:
+        document = yaml.safe_load(stream)
+    try:
+        parameters = document['t265_to_base_link']['ros__parameters']
+        parent = parameters['parent_frame_id']
+        child = parameters['child_frame_id']
+        translation = parameters['translation_m']
+        rotation = parameters['rotation_xyzw']
+    except (KeyError, TypeError):
+        raise RuntimeError('invalid measured extrinsics YAML; use t265_to_base_link.extrinsics.yaml.template')
+    if parent != 't265_pose_frame' or child != 'base_link':
+        raise RuntimeError('measured extrinsics must define t265_pose_frame -> base_link')
+    if not isinstance(translation, list) or len(translation) != 3 or \
+            not isinstance(rotation, list) or len(rotation) != 4:
+        raise RuntimeError('extrinsics translation_m must have 3 and rotation_xyzw must have 4 values')
+    values = [float(value) for value in translation + rotation]
+    if not all(math.isfinite(value) for value in values):
+        raise RuntimeError('extrinsics contain non-finite values')
+    norm = math.sqrt(sum(value * value for value in values[3:]))
+    if abs(norm - 1.0) > 0.01:
+        raise RuntimeError('extrinsics rotation_xyzw must be a unit quaternion')
+    return parent, child, values
+
+
+def _start_production(context):
+    _required_true(context, 'production')
+    _required_true(context, 'enable_vision_dds')
+    parent, child, values = _load_measured_extrinsics(
+        LaunchConfiguration('t265_to_base_link_extrinsics_file').perform(context))
+    return [
+        Node(
+            package='tf2_ros', executable='static_transform_publisher',
+            name='t265_to_base_link_static_tf', output='screen',
+            arguments=[str(value) for value in values] + [parent, child],
+        ),
+        Node(
+            package='vision_to_dds', executable='vision_to_dds_node',
+            name='vision_to_dds_node', output='screen',
+            parameters=[LaunchConfiguration('params_file')],
+        ),
+    ]
+
+
+def generate_launch_description():
+    package_share = get_package_share_directory('vision_to_dds')
+    return LaunchDescription([
+        # No defaults: these must be explicitly provided by the operator.
+        DeclareLaunchArgument('production', description='Set exactly to true to arm this production launch.'),
+        DeclareLaunchArgument('enable_vision_dds', description='Set exactly to true to create the PX4 DDS writer.'),
+        DeclareLaunchArgument(
+            't265_to_base_link_extrinsics_file',
+            description='Absolute path to Workstation 1 measured T265-to-body extrinsics YAML.'),
+        DeclareLaunchArgument(
+            'params_file', default_value=package_share + '/config/vision_to_dds.enabled.yaml',
+            description='Production parameter YAML; it must retain enable_vision_dds: true.'),
+        DeclareLaunchArgument(
+            'world_frame_id', default_value='odom_frame',
+            description='TF parent frame; must match the physical T265 odometry frame.'),
+        OpaqueFunction(function=_start_production),
+    ])

@@ -1,0 +1,21 @@
+# This file is selected only by an explicit enable/production launch action.
+# Keeping a distinct file avoids Foxy parameter-file precedence silently
+# overriding an explicit bool launch argument with the safe default below.
+vision_to_dds_node:
+  ros__parameters:
+    enable_vision_dds: true
+    world_frame_id: odom_frame
+    body_frame_id: base_link
+    vehicle_visual_odometry_topic: /fmu/in/vehicle_visual_odometry
+    quality_topic: /vision/quality
+    source_epoch_topic: /vision/source_epoch
+    output_rate: 20.0
+    minimum_quality: 50
+    maximum_sample_age_s: 0.20
+    maximum_future_skew_s: 0.02
+    maximum_timestamp_jump_s: 0.50
+    quality_timeout_s: 0.25
+    max_path_samples: 200
+    position_variance_enu: [0.04, 0.04, 0.09]
+    orientation_variance_flu: [0.04, 0.04, 0.09]
+    velocity_variance_enu: [0.25, 0.25, 0.36]

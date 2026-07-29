@@ -1,0 +1,14 @@
+# Copy this file outside the repository, replace every REQUIRED value with the
+# Workstation 1 measured result, and pass that copy explicitly to:
+#   ros2 launch vision_to_dds vision_to_dds_production.launch.py \
+#     production:=true enable_vision_dds:=true \
+#     t265_to_base_link_extrinsics_file:=/absolute/path/measured.yaml
+#
+# This is the physical static transform t265_pose_frame -> base_link.  It is
+# deliberately not populated here: guessed camera mounting values are unsafe.
+t265_to_base_link:
+  ros__parameters:
+    parent_frame_id: t265_pose_frame
+    child_frame_id: base_link
+    translation_m: [REQUIRED_X_M, REQUIRED_Y_M, REQUIRED_Z_M]
+    rotation_xyzw: [REQUIRED_QX, REQUIRED_QY, REQUIRED_QZ, REQUIRED_QW]

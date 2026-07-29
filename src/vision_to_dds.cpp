@@ -39,16 +39,30 @@ std::array<float, 3> varianceParameter(
 }  // namespace
 
 VisionToDDS::VisionToDDS()
-: Node("vision_to_dds_node"), contract_(vision_to_dds::ContractConfig{})
+: VisionToDDS(rclcpp::NodeOptions())
+{
+}
+
+VisionToDDS::VisionToDDS(const rclcpp::NodeOptions & options)
+: Node("vision_to_dds_node", options), contract_(vision_to_dds::ContractConfig{})
 {
   navigationParameters();
+  // H0: with the production writer disabled, the node remains available for
+  // process-level diagnostics but owns no TF transport endpoint.
+  if (!enable_vision_dds_) {
+    return;
+  }
   buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
   transform_listener_ = std::make_shared<tf2_ros::TransformListener>(*buffer_);
 }
 
 void VisionToDDS::run()
 {
-  RCLCPP_INFO(this->get_logger(), "vision odometry bridge starts fail-closed; awaiting source epoch, quality, and two fresh TF samples");
+  RCLCPP_INFO(
+    this->get_logger(),
+    enable_vision_dds_ ?
+    "vision odometry bridge starts fail-closed; awaiting source epoch, quality, and two fresh TF samples" :
+    "vision odometry DDS output is disabled; diagnostics remain active");
   const auto period = std::chrono::duration_cast<std::chrono::milliseconds>(
     std::chrono::duration<double>(1.0 / output_rate_));
   timer_ = this->create_wall_timer(period, std::bind(&VisionToDDS::publishVisionPositionEstimate, this));
@@ -59,9 +73,11 @@ void VisionToDDS::navigationParameters()
 {
   this->declare_parameter<std::string>("vehicle_visual_odometry_topic", "/fmu/in/vehicle_visual_odometry");
   this->get_parameter("vehicle_visual_odometry_topic", vehicle_visual_odometry_topic_);
-  this->declare_parameter<std::string>("world_frame_id", "camera_odom_frame");
+  this->declare_parameter<bool>("enable_vision_dds", false);
+  this->get_parameter("enable_vision_dds", enable_vision_dds_);
+  this->declare_parameter<std::string>("world_frame_id", "odom_frame");
   this->get_parameter("world_frame_id", world_frame_id_);
-  this->declare_parameter<std::string>("body_frame_id", "camera_link");
+  this->declare_parameter<std::string>("body_frame_id", "base_link");
   this->get_parameter("body_frame_id", body_frame_id_);
   this->declare_parameter<std::string>("quality_topic", "/vision/quality");
   this->get_parameter("quality_topic", quality_topic_);
@@ -109,6 +125,11 @@ void VisionToDDS::navigationParameters()
   max_path_samples_ = static_cast<std::size_t>(max_path_samples);
   body_path_history_.setCapacity(max_path_samples_);
 
+  // H0 must precede every ROS publisher creation.  This gives the disabled
+  // process no visual DDS writer (nor any accidental diagnostic writer).
+  if (!enable_vision_dds_) {
+    return;
+  }
   rclcpp::QoS px4_qos(rclcpp::KeepLast(1));
   vehicle_odometry_publisher_ = this->create_publisher<px4_msgs::msg::VehicleOdometry>(
     vehicle_visual_odometry_topic_, px4_qos.best_effort().durability_volatile());
@@ -128,17 +149,17 @@ void VisionToDDS::navigationParameters()
 
 void VisionToDDS::publishVisionPositionEstimate()
 {
-  const uint64_t now_us = toUsec(this->get_clock()->now());
-  std::size_t writer_count = 0U;
-  for (const auto & node_name : this->get_node_names()) {
-    if (node_name == this->get_name()) {
-      ++writer_count;
-    }
+  // H0 interlock: no DDS endpoint is constructed when disabled, and the
+  // periodic diagnostic work must never be able to emit VehicleOdometry.
+  if (!enable_vision_dds_) {
+    return;
   }
-  contract_.observeWriterCardinality(writer_count, now_us);
+
+  const uint64_t now_us = toUsec(this->get_clock()->now());
+  contract_.observeWriterCardinality(targetTopicPublisherCount(), now_us);
   contract_.tick(now_us);
   emitFaultIfNew();
-  if (!contract_.writerEnabled()) {
+  if (!mayPublishVisionDds()) {
     return;
   }
 
@@ -184,6 +205,12 @@ void VisionToDDS::publishVisionPositionEstimate()
     }
     odometry.reset_counter = evaluation.odometry.reset_counter;
     odometry.quality = evaluation.odometry.quality;
+    // The pointer is checked by mayPublishVisionDds() before entering the
+    // contract path; retain the guard so a future refactor cannot accidentally
+    // turn a disabled configuration into an output path.
+    if (!vehicle_odometry_publisher_) {
+      return;
+    }
     vehicle_odometry_publisher_->publish(odometry);
 
     geometry_msgs::msg::PoseStamped pose;
@@ -206,6 +233,14 @@ void VisionToDDS::publishVisionPositionEstimate()
   } catch (const tf2::TransformException &) {
     // A missing transform is handled by tick() once the last fresh sample ages out.
   }
+}
+
+std::size_t VisionToDDS::targetTopicPublisherCount() const
+{
+  // ROS 2 Foxy's graph API reports endpoints for the topic itself.  Counting
+  // node names is not a writer cardinality check: a node may own zero or many
+  // publishers on this topic.
+  return this->get_publishers_info_by_topic(vehicle_visual_odometry_topic_).size();
 }
 
 void VisionToDDS::qualityCallback(const std_msgs::msg::Int8::SharedPtr msg)
@@ -258,6 +293,7 @@ uint64_t VisionToDDS::toUsec(const builtin_interfaces::msg::Time & stamp)
     static_cast<uint64_t>(stamp.nanosec) / kNsecPerUsec;
 }
 
+#ifndef VISION_TO_DDS_NO_MAIN
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
@@ -270,3 +306,4 @@ int main(int argc, char ** argv)
   rclcpp::shutdown();
   return 0;
 }
+#endif  // VISION_TO_DDS_NO_MAIN

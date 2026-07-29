@@ -24,8 +24,8 @@ T265OdometryHealthSample odometry(uint64_t timestamp_us, double variance)
 TransformSample transform(uint64_t timestamp_us)
 {
   TransformSample sample;
-  sample.world_frame_id = "camera_odom_frame";
-  sample.body_frame_id = "camera_link";
+  sample.world_frame_id = "odom_frame";
+  sample.body_frame_id = "base_link";
   sample.timestamp_us = timestamp_us;
   sample.position_enu = tf2::Vector3(static_cast<double>(timestamp_us) / 1000000.0, 0.0, 0.0);
   sample.orientation_enu_flu = tf2::Quaternion(0.0, 0.0, 0.0, 1.0);
