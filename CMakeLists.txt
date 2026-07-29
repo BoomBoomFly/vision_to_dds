@@ -77,11 +77,17 @@ ament_target_dependencies(t265_health_adapter_node rclcpp nav_msgs std_msgs)
 
 install(TARGETS vision_contract t265_health_adapter vision_to_dds_node t265_health_adapter_node
   DESTINATION lib/${PROJECT_NAME})
-install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
+install(
+  DIRECTORY launch config
+  DESTINATION share/${PROJECT_NAME}
+  PATTERN "__pycache__" EXCLUDE
+  PATTERN "*.pyc" EXCLUDE
+)
 install(FILES README.md VISION_DDS_H0.md T265_TF_CONTRACT.md DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
+  find_package(ament_cmake_pytest REQUIRED)
   ament_add_gtest(test_vision_contract test/test_vision_contract.cpp)
   target_link_libraries(test_vision_contract vision_contract)
   ament_target_dependencies(test_vision_contract tf2)
@@ -106,6 +112,7 @@ if(BUILD_TESTING)
   ament_add_gtest(test_t265_tf_contract test/test_t265_tf_contract.cpp)
   target_link_libraries(test_t265_tf_contract vision_contract)
   ament_target_dependencies(test_t265_tf_contract tf2)
+  ament_add_pytest_test(test_production_launch test/test_production_launch.py)
 endif()
 
 ament_package()

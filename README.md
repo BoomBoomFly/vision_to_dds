@@ -27,3 +27,10 @@ Production launch additionally requires explicit `production:=true`,
 `enable_vision_dds:=true`, and a measured extrinsics file.  Until that
 extrinsic and replay validation are complete, do not use this package as PX4
 EKF input or for propeller-on flight.
+
+The production launch also starts `t265_health_adapter_node` against the
+observed aircraft topic `/t265/pose/sample`.  It converts the RealSense
+wrapper's covariance-encoded tracker confidence into `/vision/quality` and
+publishes `/vision/source_epoch`; neither value is a fixed or mock health
+signal.  The launch forcibly retains `odom_frame`, `base_link`, and
+`/fmu/in/vehicle_visual_odometry` even when a custom parameter file is used.

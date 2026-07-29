@@ -71,6 +71,13 @@ ros2 launch vision_to_dds vision_to_dds_production.launch.py \
   t265_to_base_link_extrinsics_file:=/absolute/path/measured.yaml
 ```
 
+It starts the health adapter with the verified workstation input
+`/t265/pose/sample` (override only if a new read-only topic audit proves a
+different `nav_msgs/msg/Odometry` name).  The production frame contract is
+not overrideable: `world_frame_id` must be `odom_frame` and `body_frame_id`
+must be `base_link`.  A custom parameter file cannot disable or redirect the
+explicitly approved production writer.
+
 Before Workstation 1 provides and validates the measured extrinsics, this
 bridge must not be used as PX4 EKF production input or for propeller-on flight.
 

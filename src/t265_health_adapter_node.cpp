@@ -45,7 +45,10 @@ public:
 private:
   vision_to_dds::T265HealthConfig parameters()
   {
-    declare_parameter<std::string>("odometry_topic", "/camera/odom/sample");
+    // This workstation launches the T265 under camera_name=t265.  Keep the
+    // health adapter on the observed aircraft topic instead of the upstream
+    // wrapper's generic camera namespace.
+    declare_parameter<std::string>("odometry_topic", "/t265/pose/sample");
     declare_parameter<std::string>("quality_topic", "/vision/quality");
     declare_parameter<std::string>("source_epoch_topic", "/vision/source_epoch");
     declare_parameter<double>("stream_timeout_s", 0.20);
