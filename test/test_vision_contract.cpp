@@ -16,8 +16,8 @@ using vision_to_dds::VisionContract;
 TransformSample sample(uint64_t timestamp_us, double x, double y, double z)
 {
   TransformSample value;
-  value.world_frame_id = "camera_odom_frame";
-  value.body_frame_id = "camera_link";
+  value.world_frame_id = "odom_frame";
+  value.body_frame_id = "base_link";
   value.timestamp_us = timestamp_us;
   value.position_enu = tf2::Vector3(x, y, z);
   value.orientation_enu_flu = tf2::Quaternion(0.0, 0.0, 0.0, 1.0);
