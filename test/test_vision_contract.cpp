@@ -94,16 +94,18 @@ TEST(VisionContract, LatchesClockTimestampAndSourceRestartFaults)
   EXPECT_EQ(restart_contract.resetCounter(), 1U);
 }
 
-TEST(VisionContract, FreezeQualityTimeoutAndTimestampJumpStopTheWriter)
+TEST(VisionContract, InputTimeoutAndTimestampJumpWarmUpAndRecover)
 {
   VisionContract freeze_contract(ContractConfig{});
   makeHealthy(freeze_contract, 1000000U);
   freeze_contract.evaluate(sample(1000000U, 0.0, 0.0, 0.0), 1000000U);
-  EXPECT_EQ(freeze_contract.tick(1200001U).fault, FaultCode::kInputTimeout);
-
-  VisionContract quality_contract(ContractConfig{});
-  makeHealthy(quality_contract, 1000000U, 10);
-  EXPECT_EQ(quality_contract.fault(), FaultCode::kQualityLow);
+  EXPECT_EQ(freeze_contract.tick(1200001U).decision, Decision::kWarmup);
+  EXPECT_TRUE(freeze_contract.writerEnabled());
+  EXPECT_EQ(freeze_contract.evaluate(sample(1200001U, 0.0, 0.0, 0.0), 1200001U).decision,
+    Decision::kWarmup);
+  freeze_contract.observeQuality(80, 1250001U);
+  EXPECT_EQ(freeze_contract.evaluate(sample(1250001U, 0.1, 0.0, 0.0), 1250001U).decision,
+    Decision::kPublish);
 
   ContractConfig jump_config;
   jump_config.maximum_sample_age_us = 2000000U;
@@ -112,11 +114,32 @@ TEST(VisionContract, FreezeQualityTimeoutAndTimestampJumpStopTheWriter)
   makeHealthy(jump_contract, 1000000U);
   jump_contract.evaluate(sample(1000000U, 0.0, 0.0, 0.0), 1000000U);
   jump_contract.observeQuality(80, 1600000U);
-  EXPECT_EQ(jump_contract.evaluate(sample(1600000U, 1.0, 0.0, 0.0), 1600000U).fault,
-    FaultCode::kTimestampJump);
+  EXPECT_EQ(jump_contract.evaluate(sample(1600000U, 1.0, 0.0, 0.0), 1600000U).decision,
+    Decision::kWarmup);
+  EXPECT_TRUE(jump_contract.writerEnabled());
+  EXPECT_EQ(jump_contract.resetCounter(), 1U);
+  EXPECT_EQ(jump_contract.evaluate(sample(1650000U, 1.1, 0.0, 0.0), 1650000U).decision,
+    Decision::kPublish);
 }
 
-TEST(VisionContract, MissingTfAfterHealthyStartupGraceLatchesInputTimeout)
+TEST(VisionContract, LowStartupQualityWarmsUpAndRecoversAutomatically)
+{
+  VisionContract contract(ContractConfig{});
+  makeHealthy(contract, 1000000U, 0);
+  EXPECT_EQ(contract.fault(), FaultCode::kNone);
+  EXPECT_TRUE(contract.writerEnabled());
+  EXPECT_EQ(contract.tick(1000000U).decision, Decision::kWarmup);
+  EXPECT_EQ(contract.evaluate(sample(1000000U, 0.0, 0.0, 0.0), 1000000U).decision,
+    Decision::kWarmup);
+
+  contract.observeQuality(80, 1050000U);
+  EXPECT_EQ(contract.evaluate(sample(1050000U, 0.0, 0.0, 0.0), 1050000U).decision,
+    Decision::kWarmup);
+  EXPECT_EQ(contract.evaluate(sample(1100000U, 0.1, 0.0, 0.0), 1100000U).decision,
+    Decision::kPublish);
+}
+
+TEST(VisionContract, MissingTfAfterHealthyStartupGraceRemainsWarmup)
 {
   ContractConfig config;
   config.maximum_sample_age_us = 200000U;
@@ -124,8 +147,8 @@ TEST(VisionContract, MissingTfAfterHealthyStartupGraceLatchesInputTimeout)
   VisionContract contract(config);
   makeHealthy(contract, 1000000U);
   EXPECT_EQ(contract.tick(1000000U).decision, Decision::kWarmup);
-  EXPECT_EQ(contract.tick(1200001U).fault, FaultCode::kInputTimeout);
-  EXPECT_FALSE(contract.writerEnabled());
+  EXPECT_EQ(contract.tick(1200001U).decision, Decision::kWarmup);
+  EXPECT_TRUE(contract.writerEnabled());
 }
 
 TEST(VisionContract, DiagnosticHistoryIsStrictlyBounded)

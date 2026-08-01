@@ -1,0 +1,10 @@
+# Workstation 1 measured installation, supplied 2026-07-30.
+# Given: T_base_link_t265_pose = [+0.082, +0.015, -0.108] m, R = identity.
+# This file supplies the inverse transform required by the production launch:
+# T_t265_pose_base_link = [-0.082, -0.015, +0.108] m, R = identity.
+t265_to_base_link:
+  ros__parameters:
+    parent_frame_id: t265_pose_frame
+    child_frame_id: base_link
+    translation_m: [-0.082, -0.015, 0.108]
+    rotation_xyzw: [0.0, 0.0, 0.0, 1.0]

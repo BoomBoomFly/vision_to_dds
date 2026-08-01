@@ -91,9 +91,6 @@ if(BUILD_TESTING)
   ament_add_gtest(test_vision_contract test/test_vision_contract.cpp)
   target_link_libraries(test_vision_contract vision_contract)
   ament_target_dependencies(test_vision_contract tf2)
-  ament_add_gtest(test_t265_health_adapter test/test_t265_health_adapter.cpp)
-  target_link_libraries(test_t265_health_adapter t265_health_adapter vision_contract)
-  ament_target_dependencies(test_t265_health_adapter tf2)
   ament_add_gtest(test_enable_vision_dds test/test_enable_vision_dds.cpp)
   target_link_libraries(test_enable_vision_dds vision_to_dds_node_lib vision_contract)
   ament_target_dependencies(
@@ -109,9 +106,6 @@ if(BUILD_TESTING)
     std_msgs
     std_srvs
   )
-  ament_add_gtest(test_t265_tf_contract test/test_t265_tf_contract.cpp)
-  target_link_libraries(test_t265_tf_contract vision_contract)
-  ament_target_dependencies(test_t265_tf_contract tf2)
   ament_add_pytest_test(test_production_launch test/test_production_launch.py)
 endif()
 

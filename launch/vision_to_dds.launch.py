@@ -1,6 +1,6 @@
 """Fail-closed development launch for the T265-to-PX4 vision bridge.
 
-This launch deliberately does not create t265_pose_frame -> base_link.  That
+This launch deliberately does not create camera_pose_frame -> base_link.  That
 transform is an installation-specific measured extrinsic, not a source-code
 default.  Supply it from a separately reviewed TF publisher after Workstation
 1 has measured it.

@@ -1,0 +1,10 @@
+# Measured physical static transform camera_link -> base_link.
+# Measurement reference: base_link at the flight controller.  The D435i is
+# 8.0 cm forward, 1.1 cm right and 14.0 cm below that origin, with aligned
+# axes.  This file stores the inverse transform required by TF.
+d435i_to_base_link:
+  ros__parameters:
+    parent_frame_id: camera_link
+    child_frame_id: base_link
+    translation_m: [-0.080, 0.011, 0.140]
+    rotation_xyzw: [0.0, 0.0, 0.0, 1.0]

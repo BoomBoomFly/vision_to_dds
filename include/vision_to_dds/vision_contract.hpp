@@ -13,8 +13,10 @@
 namespace vision_to_dds
 {
 
-// These reasons are deliberately stable: the node emits their names in its
-// structured fault event and never resumes publishing until resetFault().
+// These reasons are deliberately stable: permanent contract faults emit their
+// names in a structured fault event and require resetFault(). QUALITY_LOW is
+// different: it is a temporary warm-up inhibition and clears automatically
+// once healthy quality and fresh TF samples arrive.
 enum class FaultCode {
   kNone,
   kConfiguration,
@@ -121,8 +123,9 @@ private:
 };
 
 // A fail-closed state machine. Health, source identity and timestamps are
-// inputs, not values invented by this bridge. A latched fault requires an
-// explicit operator reset after the upstream source is healthy again.
+// inputs, not values invented by this bridge. Permanent contract faults
+// require an explicit operator reset after the upstream source is healthy
+// again; transient low tracking quality remains in warm-up and self-recovers.
 class VisionContract
 {
 public:

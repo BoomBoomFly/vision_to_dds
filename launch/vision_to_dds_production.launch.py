@@ -126,7 +126,7 @@ def _start_production(context):
 def generate_launch_description():
     package_share = get_package_share_directory('vision_to_dds')
     return LaunchDescription([
-        # No defaults: these must be explicitly provided by the operator.
+        # The measured installation file is packaged; production and writer enablement remain explicit.
         DeclareLaunchArgument(
             'production',
             description='Set exactly to true to arm this production launch.'),
@@ -135,7 +135,8 @@ def generate_launch_description():
             description='Set exactly to true to create the PX4 DDS writer.'),
         DeclareLaunchArgument(
             't265_to_base_link_extrinsics_file',
-            description='Absolute path to Workstation 1 measured T265-to-body extrinsics YAML.'),
+            default_value=package_share + '/config/t265_to_base_link.extrinsics.yaml',
+            description='Measured T265-to-body extrinsics YAML installed with vision_to_dds.'),
         DeclareLaunchArgument(
             'params_file', default_value=package_share + '/config/vision_to_dds.enabled.yaml',
             description='Production parameter YAML; it must retain enable_vision_dds: true.'),

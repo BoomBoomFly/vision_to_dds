@@ -10,7 +10,7 @@ must neither create nor publish to `/fmu/in/vehicle_visual_odometry`.
 Production use requires all of the following, in this order:
 
 1. A launch invocation explicitly sets `enable_vision_dds:=true`.
-2. Station 1 supplies a measured `t265_pose_frame -> base_link` extrinsic;
+2. Station 1 supplies a measured `camera_pose_frame -> base_link` extrinsic;
    this repository intentionally contains no guessed transform.
 3. The TF lookup is exactly `odom_frame -> base_link`, with a current,
    monotonic timestamp from the synchronized ROS/XRCE time base.

@@ -2,11 +2,11 @@
 
 ## Required physical TF chain
 
-The recorded T265 chain is `odom_frame -> t265_pose_frame`.  `vision_to_dds`
+The recorded T265 chain is `odom_frame -> camera_pose_frame`.  `vision_to_dds`
 therefore consumes exactly this composed transform:
 
 ```text
-odom_frame -> t265_pose_frame -> base_link
+odom_frame -> camera_pose_frame -> base_link
               ^ T265 data       ^ static, measured by Workstation 1
 ```
 

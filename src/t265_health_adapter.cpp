@@ -81,7 +81,14 @@ T265HealthOutput T265HealthAdapter::tick(uint64_t now_us)
   }
   have_last_now_ = true;
   last_now_us_ = now_us;
-  if (!have_sample_ || now_us > last_received_us_ + config_.stream_timeout_us) {
+  // Before the first observed message, the adapter is waiting for the T265;
+  // it is not recovering from a previously lost stream.  Marking this as a
+  // timeout would make that first message spuriously advance source_epoch.
+  if (!have_sample_) {
+    quality_ = 0;
+    return output(false);
+  }
+  if (now_us > last_received_us_ + config_.stream_timeout_us) {
     quality_ = 0;
     timed_out_ = true;
   }

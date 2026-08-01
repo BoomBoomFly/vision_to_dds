@@ -80,8 +80,12 @@ void VisionContract::observeQuality(int8_t quality, uint64_t now_us)
   have_quality_ = true;
   quality_ = quality;
   quality_received_us_ = now_us;
+  // Tracking quality routinely starts at zero while the camera/VIO pipeline
+  // converges. This is an inhibited warm-up condition, not a permanent
+  // bridge fault. Drop the velocity baseline so recovery requires two fresh
+  // healthy TF samples and cannot produce a velocity spike.
   if (quality < config_.minimum_quality) {
-    latch(FaultCode::kQualityLow);
+    have_sample_ = false;
   }
 }
 
@@ -118,16 +122,25 @@ Evaluation VisionContract::tick(uint64_t now_us)
     health_ready_since_us_ = now_us;
   }
   const FaultCode health = healthFault(now_us);
+  if (health == FaultCode::kQualityLow) {
+    return warmupOrFault();
+  }
   if (health != FaultCode::kNone) {
     return latch(health);
   }
   if (have_sample_ && now_us > previous_sample_.timestamp_us + config_.maximum_sample_age_us) {
-    return latch(FaultCode::kInputTimeout);
+    // A slow stereo-VIO update is not a permanent contract violation. Stop
+    // publishing until a new pair of samples establishes a fresh velocity
+    // baseline, but do not latch the bridge or require an operator reset.
+    have_sample_ = false;
+    health_ready_since_us_ = now_us;
+    return warmupOrFault();
   }
   if (!have_sample_ && now_us > health_ready_since_us_ + config_.maximum_sample_age_us) {
-    // Once measured health is available, a TF chain that never appears is an
-    // input outage, not an indefinitely silent warm-up state.
-    return latch(FaultCode::kInputTimeout);
+    // Missing input remains fail-silent. Keep waiting for a fresh transform
+    // rather than turning a transient VIO stall into a latched fault.
+    health_ready_since_us_ = now_us;
+    return warmupOrFault();
   }
   return warmupOrFault();
 }
@@ -139,6 +152,12 @@ Evaluation VisionContract::evaluate(const TransformSample & sample, uint64_t now
     return tick_result;
   }
   if (!have_epoch_ || !have_quality_) {
+    return warmupOrFault();
+  }
+  if (quality_ < config_.minimum_quality) {
+    // tick() deliberately leaves low quality in warm-up. evaluate() must
+    // enforce the same inhibition before it can turn a TF sample into PX4
+    // odometry.
     return warmupOrFault();
   }
   if (sample.world_frame_id != config_.world_frame_id || sample.body_frame_id != config_.body_frame_id) {
@@ -155,7 +174,11 @@ Evaluation VisionContract::evaluate(const TransformSample & sample, uint64_t now
     return latch(FaultCode::kSampleInFuture);
   }
   if (now_us > sample.timestamp_us + config_.maximum_sample_age_us) {
-    return latch(FaultCode::kSampleTooOld);
+    // Do not publish stale pose data, and reset the velocity baseline for
+    // clean self-recovery once stereo VIO produces fresh input again.
+    have_sample_ = false;
+    health_ready_since_us_ = now_us;
+    return warmupOrFault();
   }
   if (!have_sample_) {
     previous_sample_ = sample;
@@ -170,7 +193,12 @@ Evaluation VisionContract::evaluate(const TransformSample & sample, uint64_t now
   }
   const uint64_t delta_us = sample.timestamp_us - previous_sample_.timestamp_us;
   if (delta_us > config_.maximum_timestamp_jump_us) {
-    return latch(FaultCode::kTimestampJump);
+    // A delayed VIO frame must not create a velocity spike or permanently
+    // disable visual odometry. Re-baseline on the fresh sample and signal the
+    // discontinuity to PX4 on the next published estimate.
+    previous_sample_ = sample;
+    reset_counter_ = static_cast<uint8_t>(reset_counter_ + 1U);
+    return warmupOrFault();
   }
 
   VehicleOdometrySample output;

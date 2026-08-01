@@ -19,8 +19,8 @@ two-sample warm-up and freeze detection must all pass.  Any fault latches and
 stops output.
 
 The default frame contract is `odom_frame -> base_link`.  The real T265 input
-is `odom_frame -> t265_pose_frame`; Workstation 1 must provide the measured
-`t265_pose_frame -> base_link` extrinsic.  No mounting values are shipped.
+is `odom_frame -> camera_pose_frame`; Workstation 1 must provide the measured
+`camera_pose_frame -> base_link` extrinsic.  No mounting values are shipped.
 See `T265_TF_CONTRACT.md` and `VISION_DDS_H0.md`.
 
 Production launch additionally requires explicit `production:=true`,

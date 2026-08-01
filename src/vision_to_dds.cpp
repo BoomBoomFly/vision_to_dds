@@ -53,11 +53,16 @@ VisionToDDS::VisionToDDS(const rclcpp::NodeOptions & options)
     return;
   }
   buffer_ = std::make_shared<tf2_ros::Buffer>(this->get_clock());
-  transform_listener_ = std::make_shared<tf2_ros::TransformListener>(*buffer_);
 }
 
 void VisionToDDS::run()
 {
+  // Bind TF subscriptions to this node executor after construction.
+  // The main executor below services these TF callbacks.
+  if (enable_vision_dds_ && !transform_listener_) {
+    transform_listener_ = std::make_shared<tf2_ros::TransformListener>(
+      *buffer_, this->shared_from_this(), false);
+  }
   RCLCPP_INFO(
     this->get_logger(),
     enable_vision_dds_ ?
@@ -86,7 +91,7 @@ void VisionToDDS::navigationParameters()
   this->declare_parameter<double>("output_rate", 20.0);
   this->get_parameter("output_rate", output_rate_);
   this->declare_parameter<int>("minimum_quality", 50);
-  this->declare_parameter<double>("maximum_sample_age_s", 0.20);
+  this->declare_parameter<double>("maximum_sample_age_s", 0.45);
   this->declare_parameter<double>("maximum_future_skew_s", 0.02);
   this->declare_parameter<double>("maximum_timestamp_jump_s", 0.50);
   this->declare_parameter<double>("quality_timeout_s", 0.25);
